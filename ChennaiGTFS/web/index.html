@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chennai Transit Explorer — CMRL Metro & MTC Bus Routes</title>
+  <meta name="description" content="Interactive map explorer for Chennai's public transit network. Explore CMRL Metro lines, 3,900+ MTC bus routes, and over 5,500 stops powered by open GTFS data.">
+  <meta name="keywords" content="Chennai GTFS, MTC Chennai, CMRL Metro, Chennai Bus Routes, Chennai Public Transport Map">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS (Local with CDN fallback) -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" id="leaflet-css">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="brand-badge">
+          <div class="brand-pulse"></div>
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="4" />
+            <path d="M3 10h18" />
+            <path d="M7 16h2" />
+            <path d="M15 16h2" />
+            <circle cx="7" cy="19" r="1" />
+            <circle cx="17" cy="19" r="1" />
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">Chennai<span>Transit</span></h1>
+          <span class="brand-subtitle">Open GTFS Explorer • CMRL & MTC</span>
+        </div>
+      </div>
+
+      <!-- Live Network Metric Badges -->
+      <div class="nav-metrics">
+        <div class="metric-pill" title="CMRL Metro Network">
+          <span class="metric-dot metro-dot"></span>
+          <span class="metric-label">Metro</span>
+          <strong class="metric-val" id="metric-metro">44 Stations</strong>
+        </div>
+        <div class="metric-pill" title="MTC Bus System">
+          <span class="metric-dot bus-dot"></span>
+          <span class="metric-label">MTC Buses</span>
+          <strong class="metric-val" id="metric-bus">3,934 Routes</strong>
+        </div>
+        <div class="metric-pill" title="Total Stop Catalog">
+          <span class="metric-dot stop-dot"></span>
+          <span class="metric-label">Stops</span>
+          <strong class="metric-val" id="metric-stops">5,580 Stops</strong>
+        </div>
+      </div>
+
+      <!-- Action Controls -->
+      <div class="nav-actions">
+        <div class="basemap-selector" id="basemap-selector">
+          <button class="base-btn active" data-style="dark" id="btn-map-dark" title="Dark Canvas">Dark</button>
+          <button class="base-btn" data-style="light" id="btn-map-light" title="Standard Streets">Street</button>
+          <button class="base-btn" data-style="satellite" id="btn-map-sat" title="Satellite Imagery">Satellite</button>
+        </div>
+        <button class="btn-icon" id="btn-toggle-sidebar" title="Toggle Sidebar" aria-label="Toggle Navigation Panel">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+      
+      <!-- Interactive Map Area -->
+      <main class="map-viewport" id="map-viewport">
+        <div id="map" class="map-element"></div>
+
+        <!-- Floating Active Route Overlay Banner -->
+        <div class="floating-route-banner" id="floating-route-banner" style="display: none;">
+          <div class="fr-left">
+            <span class="fr-badge" id="fr-badge">29A</span>
+            <div class="fr-info">
+              <h3 class="fr-title" id="fr-title">Anna Square ➔ Perambur B.T</h3>
+              <p class="fr-sub" id="fr-sub">38 stops • Regular Service</p>
+            </div>
+          </div>
+          <div class="fr-actions">
+            <button class="btn-pill" id="btn-fr-simulate" title="Simulate vehicle animation">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Play Sim</span>
+            </button>
+            <button class="btn-pill btn-pill-close" id="btn-fr-clear" title="Clear selection">✕ Clear</button>
+          </div>
+        </div>
+
+        <!-- Floating Map Utility Buttons -->
+        <div class="map-fab-stack">
+          <button class="fab-btn" id="btn-recenter" title="Reset View to Chennai Center">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="12 8 8 16 12 14 16 16 12 8" fill="currentColor" />
+            </svg>
+          </button>
+          <button class="fab-btn" id="btn-toggle-metro-layer" title="Toggle CMRL Metro Overlays">
+            <span class="fab-badge">M</span>
+          </button>
+          <button class="fab-btn" id="btn-toggle-hubs-layer" title="Toggle Major Transit Hubs">
+            <span class="fab-badge">H</span>
+          </button>
+        </div>
+
+        <!-- Map Legend -->
+        <div class="map-legend" id="map-legend">
+          <div class="legend-header">
+            <span>Network Key</span>
+            <span class="legend-toggle" id="btn-legend-collapse">−</span>
+          </div>
+          <div class="legend-body" id="legend-body">
+            <div class="legend-row">
+              <span class="legend-line line-metro-blue"></span>
+              <span class="legend-text">CMRL Blue Line (Wimco Nagar ↔ Airport)</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-line line-metro-green"></span>
+              <span class="legend-text">CMRL Green Line (Central ↔ St. Thomas Mount)</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-line line-metro-purple"></span>
+              <span class="legend-text">Inter-Corridor (Central ↔ Airport)</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-line line-bus-active"></span>
+              <span class="legend-text">Selected MTC Bus Route</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot dot-interchange"></span>
+              <span class="legend-text">Major Interchange (Central / Alandur)</span>
+            </div>
+            <div class="legend-row">
+              <span class="legend-dot dot-hub"></span>
+              <span class="legend-text">MTC Bus Terminus Hub</span>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Sidebar Panel -->
+      <aside class="sidebar" id="sidebar">
+        
+        <!-- Search & Filter Controls -->
+        <div class="sidebar-search-section">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input 
+              type="text" 
+              id="search-input" 
+              class="search-input" 
+              placeholder="Search route (e.g. 29A, 570, 21G) or place..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="search-clear" id="btn-clear-search" title="Clear Search" style="display: none;">✕</button>
+            <div class="search-kbd" title="Press / to search">/</div>
+          </div>
+
+          <!-- Filter Navigation Tabs -->
+          <div class="filter-tabs">
+            <button class="tab-btn active" data-tab="all" id="tab-all">All</button>
+            <button class="tab-btn" data-tab="metro" id="tab-metro">Metro (CMRL)</button>
+            <button class="tab-btn" data-tab="bus" id="tab-bus">Buses (MTC)</button>
+            <button class="tab-btn" data-tab="hubs" id="tab-hubs">Major Hubs</button>
+          </div>
+
+          <!-- Quick Chips -->
+          <div class="quick-chips" id="quick-chips">
+            <span class="chip-label">Quick:</span>
+            <button class="chip-item" data-query="Blue Line">Blue Line</button>
+            <button class="chip-item" data-query="Green Line">Green Line</button>
+            <button class="chip-item" data-query="29A">29A</button>
+            <button class="chip-item" data-query="570">570 (OMR)</button>
+            <button class="chip-item" data-query="21G">21G</button>
+            <button class="chip-item" data-query="18D">18D</button>
+            <button class="chip-item" data-query="54">54</button>
+            <button class="chip-item" data-query="Koyambedu">CMBT</button>
+            <button class="chip-item" data-query="Tambaram">Tambaram</button>
+          </div>
+        </div>
+
+        <!-- Sidebar Dynamic Content Area -->
+        <div class="sidebar-content" id="sidebar-content">
+          
+          <!-- View A: Active Route Inspection Card (Shown when route selected) -->
+          <section class="active-route-card" id="active-route-card" style="display: none;">
+            <div class="arc-header">
+              <div class="arc-badge-row">
+                <span class="arc-badge" id="arc-badge">MTC 29A</span>
+                <span class="arc-type" id="arc-type">Express Bus</span>
+              </div>
+              <button class="arc-close" id="btn-close-route-details" title="Back to list">✕</button>
+            </div>
+            
+            <h2 class="arc-name" id="arc-name">Anna Square ➔ Perambur B.T</h2>
+            
+            <div class="arc-metrics">
+              <div class="arc-stat">
+                <span class="stat-lbl">Total Stops</span>
+                <strong class="stat-val" id="arc-stat-stops">34</strong>
+              </div>
+              <div class="arc-stat">
+                <span class="stat-lbl">Approx Span</span>
+                <strong class="stat-val" id="arc-stat-distance">16.4 km</strong>
+              </div>
+              <div class="arc-stat">
+                <span class="stat-lbl">Transit Type</span>
+                <strong class="stat-val" id="arc-stat-mode">MTC City Bus</strong>
+              </div>
+            </div>
+            <!-- Live Schedule, Timings & Delay Status Panel -->
+            <div class="arc-timing-panel" id="arc-timing-panel">
+              <div class="timing-header">
+                <div class="th-left">
+                  <span class="timing-pulse"></span>
+                  <span class="timing-title">Next Scheduled Departure</span>
+                </div>
+                <div class="delay-status-badge" id="delay-status-badge">
+                  <span class="dsb-dot"></span>
+                  <span class="dsb-text" id="dsb-text">On-Time (Scheduled)</span>
+                </div>
+              </div>
+
+              <div class="next-departure-row">
+                <div class="departure-main">
+                  <span class="dep-time" id="dep-next-time">--:--</span>
+                  <span class="dep-countdown" id="dep-countdown">Calculating...</span>
+                </div>
+                <button class="btn-view-timetable" id="btn-toggle-timetable" title="View all daily departure times">
+                  <span>📅 Timetable</span>
+                </button>
+              </div>
+
+              <!-- Upcoming departures strip -->
+              <div class="upcoming-departures-strip" id="upcoming-departures-strip">
+                <span class="uds-label">Later:</span>
+                <div class="uds-times" id="uds-times"></div>
+              </div>
+
+              <!-- Traffic & Delay Estimator (What if it's running late?) -->
+              <div class="delay-adjuster-section">
+                <div class="das-header">
+                  <span class="das-label">Traffic Delay Simulation:</span>
+                  <span class="das-val" id="das-val">+0 min (On-Time)</span>
+                </div>
+                <div class="delay-pills" id="delay-pills">
+                  <button class="delay-pill active" data-delay="0">On-Time</button>
+                  <button class="delay-pill" data-delay="5">+5m Mild</button>
+                  <button class="delay-pill" data-delay="10">+10m Peak</button>
+                  <button class="delay-pill" data-delay="20">+20m Heavy</button>
+                </div>
+              </div>
+
+              <!-- Real-time GTFS-RT Explanatory Notice -->
+              <div class="realtime-notice-box">
+                <div class="rt-notice-icon">ℹ️</div>
+                <div class="rt-notice-content">
+                  <strong>Static Timetable vs Live Delay:</strong> This feed provides official MTC scheduled departure times. Real-time GPS delay tracking requires an open GTFS-RT feed (currently available only in the proprietary <em>Chennai Bus / Chalo</em> app).
+                </div>
+              </div>
+
+              <!-- Expandable Timetable Grid -->
+              <div class="timetable-drawer" id="timetable-drawer" style="display: none;">
+                <div class="tt-header">
+                  <span class="tt-title">All Scheduled Departures</span>
+                  <span class="tt-total" id="tt-total-count">0 trips</span>
+                </div>
+                <div class="tt-grid" id="tt-grid"></div>
+              </div>
+            </div>
+
+            <!-- Route Actions Bar -->
+            <div class="arc-actions-bar">
+              <button class="action-btn" id="btn-zoom-route">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+                <span>Fit Route</span>
+              </button>
+              <button class="action-btn" id="btn-reverse-route">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2">
+                  <path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/>
+                </svg>
+                <span>Flip Stops</span>
+              </button>
+              <button class="action-btn" id="btn-simulate-vehicle">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span id="sim-btn-text">Simulate</span>
+              </button>
+            </div>
+
+            <!-- Stop List Accordion -->
+            <div class="stop-timeline-container">
+              <div class="timeline-header">
+                <h3>Route Stops Sequence</h3>
+                <span class="timeline-counter" id="timeline-counter">34 stops</span>
+              </div>
+              <div class="stop-timeline" id="stop-timeline">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+          </section>
+
+          <!-- View B: Station / Stop Inspector Card (When clicked on map) -->
+          <section class="station-detail-card" id="station-detail-card" style="display: none;">
+            <div class="sd-header">
+              <span class="sd-tag" id="sd-tag">Metro Station</span>
+              <button class="arc-close" id="btn-close-station-card">✕</button>
+            </div>
+            <h2 class="sd-title" id="sd-title">Puratchi Thalaivar Dr. M.G. Ramachandran Central</h2>
+            <div class="sd-coord" id="sd-coord">13.081767, 80.273910</div>
+            
+            <div class="sd-section">
+              <h4 class="sd-subtitle">Connecting Lines & Routes</h4>
+              <div class="sd-routes-list" id="sd-routes-list">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <div class="sd-frequency" id="sd-frequency" style="display: none;">
+              <h4 class="sd-subtitle">Metro Frequency & Headway</h4>
+              <p class="freq-item">⚡ <strong>Peak:</strong> Every 6 minutes (05:00 - 08:00 & 17:00 - 20:00)</p>
+              <p class="freq-item">⏱️ <strong>Non-Peak:</strong> Every 7-10 minutes</p>
+              <p class="freq-item">🌙 <strong>Night:</strong> Every 15 minutes until 23:00</p>
+            </div>
+          </section>
+
+          <!-- View C: Search Results and Route Lists -->
+          <div class="search-results-wrapper" id="search-results-wrapper">
+            <div class="results-header" id="results-header">
+              <span class="results-count" id="results-count">Showing transit routes</span>
+              <span class="results-hint">Click any route to map</span>
+            </div>
+            <div class="results-list" id="results-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sidebar Footer -->
+        <footer class="sidebar-footer">
+          <p>Data from <strong>UngalSoththu / ChennaiGTFS</strong> • ODbL License</p>
+          <div class="footer-links">
+            <a href="https://github.com/ungalsoththu/ChennaiGTFS" target="_blank" rel="noopener">GitHub Repo</a>
+            <span>•</span>
+            <a href="https://developers.google.com/transit/gtfs" target="_blank" rel="noopener">GTFS Spec</a>
+          </div>
+        </footer>
+
+      </aside>
+
+    </div>
+  </div>
+
+  <!-- Leaflet JS (Local with CDN fallback) -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script>
+    if (typeof L === 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      document.head.appendChild(script);
+    }
+  </script>
+  
+  <!-- Application Core Script -->
+  <script src="app.js"></script>
+</body>
+</html>
